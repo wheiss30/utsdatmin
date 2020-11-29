@@ -1,0 +1,217 @@
+---
+title: "UTS DMKM"
+author: "Muhammad Al Fatah"
+date: "10/27/2020"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+## Library
+```{r}
+library(tidyverse)
+library(psych)
+library(caret)
+```
+
+
+## Import File
+```{r}
+#Import file
+getwd()
+setwd("C:/Users/alfat/Desktop/STIS/5/DMNK/New folder")
+data_echo1<-read.csv("echo/echocardiogram.data", header = F)
+View(data_echo1)
+```
+
+
+## Format Data
+```{r}
+#Format Data
+str(data_echo1)
+```
+
+
+## Missing Value
+```{r}
+#Missing Value
+data_echo<-na_if(data_echo,"?")
+sapply(data_echo, function(x) sum(is.na(x)))
+```
+
+
+ ## #Menghilangkan variabel yang tidak berpengaruh dan menghapus data ke-50
+```{r}
+#Menghilangkan variabel yang tidak berpengaruh dan menghapus data ke-50
+data_echo<-data_echo[-50,-c(8, 10,11,12)]
+```
+
+
+
+## Mengubah format data menjadi numeric
+```{r}
+#Mengubah format data menjadi numeric
+for(i in names(data_echo)){
+  data_echo[,i]= as.numeric(data_echo[,i])
+}
+```
+
+
+
+## Fungsi modus
+```{r}
+#Fungsi modus
+my_mode <- function(x) {  # Create mode function 
+  unique_x <- unique(x)
+  mode <- unique_x[which.max(tabulate(match(x, unique_x)))]
+  mode
+}
+```
+
+
+
+## Mengatasi missing data dengan menggunakan modus
+```{r}
+#Mengatasi missing data dengan menggunakan modus
+data_echo$V13[is.na(data_echo$V13)] <- my_mode(data_echo$V13[!is.na(data_echo$V13)])
+data_echo$V1[is.na(data_echo$V1)] <- my_mode(data_echo$V1[!is.na(data_echo$V1)])
+data_echo$V2[is.na(data_echo$V2)] <- my_mode(data_echo$V2[!is.na(data_echo$V2)])
+data_echo$V4[is.na(data_echo$V4)] <- my_mode(data_echo$V4[!is.na(data_echo$V4)])
+```
+
+
+
+## Mengatasi missing data dengan menggunakan mean
+```{r}
+#Mengatasi missing data dengan menggunakan mean
+data_echo$V3[is.na(data_echo$V3)] <- mean(data_echo$V3, na.rm=TRUE)
+data_echo$V7[is.na(data_echo$V7)] <- mean(data_echo$V7, na.rm=TRUE)
+data_echo$V6[is.na(data_echo$V6)] <- mean(data_echo$V6, na.rm=TRUE)
+data_echo$V9[is.na(data_echo$V9)] <- mean(data_echo$V9, na.rm=TRUE)
+data_echo$V5[is.na(data_echo$V5)] <- mean(data_echo$V5, na.rm=TRUE)
+```
+
+
+
+## Mengubah format data menjadi factor
+```{r}
+#Mengubah format data menjadi factor
+data_echo$V2 <- recode(data_echo$V2, '0'="Dead at end of survival periode", '1'="Still Alive")
+data_echo$V4 <- recode(data_echo$V4, '0'="No Fluid", '1'="Fluid")
+data_echo$V4
+data_echo$V13<- as.factor(data_echo$V13)
+```
+
+
+
+## Mengubah format data menjadi factor (dengan label)
+```{r}
+#Mengubah format data menjadi factor (dengan label)
+data_echo$V3 <- cut(data_echo$V3, 
+                   breaks = 4, 
+                   include.lowest = TRUE)
+
+data_echo$V1 <- cut(data_echo$V1, 
+                    breaks = 4, 
+                    include.lowest = TRUE)
+data_echo$V5 <- cut(data_echo$V5, 
+                    breaks = 4, 
+                    include.lowest = TRUE)
+data_echo$V6 <- cut(data_echo$V6, 
+                    breaks = 4, 
+                    include.lowest = TRUE)
+data_echo$V7 <- cut(data_echo$V7, 
+                    breaks = 4, 
+                    include.lowest = TRUE)
+data_echo$V9 <- cut(data_echo$V9, 
+                    breaks = 4, 
+                    include.lowest = TRUE)
+```
+
+
+
+## Melihat Korelasi antar Variabel
+
+```{r}
+pairs.panels(data_echo)
+```
+Terlihat korelasi antara V1 dan V2 cukup besar, kita harus menghilangkannya
+
+
+## Menghilangkan variabel V1
+
+```{r}
+data_echo<-data_echo[,-1]
+data_echo
+```
+
+## Split Data
+
+```{r}
+#Split Data
+set.seed(1234)
+sampel <- sample(2, nrow(data_echo), replace = T, prob = c(0.8,0.2))
+trainingdat <- data_echo[sampel==1, ]
+testingdat <- data_echo[sampel==2, ]
+print(paste("Jumlah Train Data: ", nrow(trainingdat), "| Jumlah Test Data: ", nrow(testingdat)))
+```
+
+
+
+## Buat Model
+
+```{r}
+#Buat Model
+modellogreg<-glm(V13~., data=trainingdat, family = "binomial")
+summary(modellogreg)
+```
+
+
+## Koefisien Model
+
+```{r}
+#Koefisien Model
+coefficients(modellogreg)
+```
+
+
+## Membuat Prediksi
+
+```{r}
+prediksilogreg <- predict(modellogreg, testingdat, type="response") #output berupa peluang
+prediksilogreg
+```
+
+
+
+## Menyaring prediksi   
+```{r}
+#Menyaring prediksi, lebih besar dari 0.05 dikategorikan 1 (Alive) selain itu dikategorikan 0 (Meninggoy/belum sampai 1 tahun)
+pred <- ifelse(prediksilogreg>0.5, 1, 0)
+pred
+```
+
+
+## Confusion Matrix
+```{r}
+#Confusion Matrix
+confusionMatrix(table(pred, testingdat$V13))
+```
+
+Dengan tingkat kepercayaan sebesar 95% model ini mampu memprediksi dengan benar dengan tingkat akurasi berkisar 0.7084 sampai 0.9888
+
+Akurasi: model yang dihasilkan dari hasil running data ini memiliki akurasi sebesar 90%, yang artinya model ini sudah bisa dibilang baik untuk memprediksi/mengklasifikasi apakah pasien tetap hidup setelah 1 tahun atau tidak.
+
+Sensitivity atau recall: Sensivity yang didapatkan dari model ini sebesar 90% yang artinya dari 22 prediksi, untuk prediksi positif (0 atau sudah meninggal atau belum sampai 1 tahun) yang benar ada 20.
+
+Specificity: adalah banyaknya prediksi negatif (yang masih hidup setelah 1 tahun) yang berhasil ditebak, sayangnya dalam model ini tidak ada yang berhasil ditebak.
+
+F1 adalah rata-rata harmoonik dari precision dan recall
+F1= 2/(1/precision + 1/recall)
+F1= 2/(1+1/0.9091)=0.9524
+Semakin tinggi F1 maka model semakin bagus
+
+Precision=TP/TP+FP=20/20=1
